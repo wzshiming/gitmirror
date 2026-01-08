@@ -13,6 +13,8 @@ import (
 	"regexp"
 	"strings"
 	"time"
+
+	"github.com/wzshiming/gitmirror/pkg/proxy"
 )
 
 type contextKey string
@@ -66,10 +68,13 @@ type Loader interface {
 	Load(repo string) (Repository, error)
 }
 
-// Repository represents a local git repository for serving.
+// Repository represents a git repository for serving.
 type Repository interface {
-	// Path returns the path to the repository's git directory.
+	// Path returns the path to the repository's local git directory.
+	// May be empty if the repository is fully proxied.
 	Path() string
+	// UpstreamURL returns the URL of the upstream repository.
+	UpstreamURL() string
 }
 
 // Backend represents a Git HTTP handler.
@@ -176,10 +181,19 @@ func serviceRPC(w http.ResponseWriter, r *http.Request) {
 		reader = r.Body
 	}
 
-	// Execute git-upload-pack command
-	err = execGitUploadPack(ctx, st.Path(), reader, w)
+	// Read the request body to forward to upstream
+	requestBody, err := io.ReadAll(reader)
 	if err != nil {
-		logf(errorLog, "error processing upload-pack request: %v", err)
+		logf(errorLog, "error reading request body: %v", err)
+		renderStatusError(w, http.StatusInternalServerError)
+		return
+	}
+
+	// Proxy the request to upstream
+	upstream := proxy.NewUpstream(st.UpstreamURL())
+	err = upstream.StreamUploadPack(ctx, requestBody, w)
+	if err != nil {
+		logf(errorLog, "error proxying upload-pack request: %v", err)
 		// Don't write error if we've already started writing
 		return
 	}
@@ -205,10 +219,17 @@ func getInfoRefs(w http.ResponseWriter, r *http.Request) {
 		hdrNocache(w)
 		w.Header().Set("Content-Type", fmt.Sprintf("application/x-git-%s-advertisement", service.Name()))
 
-		err := execGitUploadPackAdvertise(ctx, st.Path(), w)
+		// Proxy info/refs to upstream
+		upstream := proxy.NewUpstream(st.UpstreamURL())
+		body, err := upstream.InfoRefs(ctx, string(service))
 		if err != nil {
-			logf(errorLog, "error processing info/refs request: %v", err)
-			renderStatusError(w, http.StatusInternalServerError)
+			logf(errorLog, "error fetching info/refs from upstream: %v", err)
+			renderStatusError(w, http.StatusBadGateway)
+			return
+		}
+
+		if _, err := w.Write(body); err != nil {
+			logf(errorLog, "error writing info/refs response: %v", err)
 			return
 		}
 	} else {

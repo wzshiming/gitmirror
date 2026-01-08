@@ -1,11 +1,11 @@
 # gitmirror
 
-A read-only Git mirror server that proxies and caches Git repositories from upstream sources.
+A read-only Git mirror server that proxies Git repositories from upstream sources with real-time request forwarding.
 
 ## Features
 
-- **Read-only Mirror**: Serves Git repositories as read-only mirrors
-- **On-demand Caching**: Automatically clones and caches repositories from upstream when first accessed
+- **Real-time Proxy**: Proxies git requests directly to upstream without pre-cloning
+- **Request Parsing**: Parses git-upload-pack requests to understand client needs
 - **Smart HTTP Protocol**: Supports the Git Smart HTTP protocol for efficient transfers
 - **Multiple Hosts**: Built-in support for GitHub, GitLab, Bitbucket, and Gitee
 
@@ -45,8 +45,8 @@ git clone http://localhost:8080/github.com/owner/repo
 
 1. When a client requests a repository (e.g., `git clone http://localhost:8080/github.com/owner/repo`), the server parses the URL to extract the repository path
 2. The resolver maps the path to an upstream URL (e.g., `https://github.com/owner/repo.git`)
-3. If the repository isn't cached locally, it's cloned as a bare mirror from the upstream
-4. The server then serves the cached repository using the Git Smart HTTP protocol
+3. The server proxies the git-upload-pack request to the upstream in real-time
+4. The response is streamed directly back to the client
 
 ## Supported Upstream Hosts
 
@@ -59,16 +59,24 @@ git clone http://localhost:8080/github.com/owner/repo
 
 ```
 ┌─────────┐     ┌──────────────┐     ┌───────────────┐     ┌──────────┐
-│  Client │────>│   Backend    │────>│    Mirror     │────>│ Upstream │
-│ (git)   │<────│  (HTTP API)  │<────│   (cache)     │<────│  (git)   │
+│  Client │────>│   Backend    │────>│    Proxy      │────>│ Upstream │
+│ (git)   │<────│  (HTTP API)  │<────│  (forward)    │<────│  (git)   │
 └─────────┘     └──────────────┘     └───────────────┘     └──────────┘
                        │
                        v
                 ┌──────────────┐
-                │   Resolver   │
-                │ (URL parser) │
+                │   pktline    │
+                │  (parser)    │
                 └──────────────┘
 ```
+
+### Key Components
+
+- **`pkg/backend/`** - Git Smart HTTP protocol handler
+- **`pkg/proxy/`** - Upstream request proxying
+- **`pkg/pktline/`** - Git pkt-line format parser
+- **`pkg/upstream/`** - URL resolution for upstream hosts
+- **`pkg/mirror/`** - Repository management
 
 ## License
 

@@ -8,11 +8,16 @@ import (
 
 // mockRepository implements the Repository interface for testing.
 type mockRepository struct {
-	path string
+	path        string
+	upstreamURL string
 }
 
 func (m *mockRepository) Path() string {
 	return m.path
+}
+
+func (m *mockRepository) UpstreamURL() string {
+	return m.upstreamURL
 }
 
 // mockLoader implements the Loader interface for testing.
@@ -76,7 +81,7 @@ func TestBackend_ServeHTTP_NotFound(t *testing.T) {
 func TestBackend_ServeHTTP_MethodNotAllowed(t *testing.T) {
 	loader := &mockLoader{
 		repos: map[string]Repository{
-			"github.com/owner/repo": &mockRepository{path: "/tmp/test"},
+			"github.com/owner/repo": &mockRepository{path: "/tmp/test", upstreamURL: "https://github.com/owner/repo.git"},
 		},
 	}
 	backend := NewBackend(loader)
@@ -115,7 +120,7 @@ func TestBackend_ServeHTTP_MethodNotAllowed(t *testing.T) {
 func TestBackend_Prefix(t *testing.T) {
 	loader := &mockLoader{
 		repos: map[string]Repository{
-			"github.com/owner/repo": &mockRepository{path: "/tmp/test"},
+			"github.com/owner/repo": &mockRepository{path: "/tmp/test", upstreamURL: "https://github.com/owner/repo.git"},
 		},
 	}
 	backend := NewBackend(loader)

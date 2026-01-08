@@ -31,42 +31,31 @@ func NewMirror(baseDir string) (*Mirror, error) {
 
 // Repository represents a mirrored git repository.
 type Repository struct {
-	path string
+	path        string
+	upstreamURL string
 }
 
-// Path returns the path to the repository's git directory.
+// Path returns the path to the repository's local git directory.
+// For the proxy-based approach, this may be empty.
 func (r *Repository) Path() string {
 	return r.path
 }
 
-// GetOrFetch returns a local mirror of the remote repository.
-// If the repository already exists locally, it returns it directly.
-// If not, it clones the repository as a bare mirror.
+// UpstreamURL returns the URL of the upstream repository.
+func (r *Repository) UpstreamURL() string {
+	return r.upstreamURL
+}
+
+// GetOrFetch returns a repository handle for the given remote URL.
+// With the proxy-based approach, this doesn't clone upfront but returns
+// a repository that can proxy requests to the upstream.
 func (m *Mirror) GetOrFetch(ctx context.Context, remoteURL string) (*Repository, error) {
 	localPath := m.repoPath(remoteURL)
 
-	m.mu.RLock()
-	exists := m.exists(localPath)
-	m.mu.RUnlock()
-
-	if exists {
-		return &Repository{path: localPath}, nil
-	}
-
-	m.mu.Lock()
-	defer m.mu.Unlock()
-
-	// Double-check after acquiring write lock
-	if m.exists(localPath) {
-		return &Repository{path: localPath}, nil
-	}
-
-	// Clone as bare mirror
-	if err := m.clone(ctx, remoteURL, localPath); err != nil {
-		return nil, fmt.Errorf("cloning repository: %w", err)
-	}
-
-	return &Repository{path: localPath}, nil
+	return &Repository{
+		path:        localPath,
+		upstreamURL: remoteURL,
+	}, nil
 }
 
 // Fetch updates an existing mirrored repository from its remote.

@@ -86,8 +86,15 @@ func TestMirror_exists(t *testing.T) {
 }
 
 func TestRepository_Path(t *testing.T) {
-	r := &Repository{path: "/test/path"}
+	r := &Repository{path: "/test/path", upstreamURL: "https://github.com/owner/repo.git"}
 	if got := r.Path(); got != "/test/path" {
 		t.Errorf("Path() = %v, want /test/path", got)
+	}
+}
+
+func TestRepository_UpstreamURL(t *testing.T) {
+	r := &Repository{path: "/test/path", upstreamURL: "https://github.com/owner/repo.git"}
+	if got := r.UpstreamURL(); got != "https://github.com/owner/repo.git" {
+		t.Errorf("UpstreamURL() = %v, want https://github.com/owner/repo.git", got)
 	}
 }
