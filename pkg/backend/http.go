@@ -9,6 +9,7 @@ import (
 	"io"
 	"log"
 	"net/http"
+	"path/filepath"
 	"regexp"
 	"strings"
 	"time"
@@ -61,13 +62,13 @@ var routes = []route{
 // Loader loads repository storage based on a repository path.
 type Loader interface {
 	// Load loads a repository given a path.
-	// Returns ErrRepositoryNotFound if the repository does not exist.
+	// Returns an error if the repository does not exist.
 	Load(repo string) (Repository, error)
 }
 
 // Repository represents a local git repository for serving.
 type Repository interface {
-	// Filesystem returns the path to the repository's git directory.
+	// Path returns the path to the repository's git directory.
 	Path() string
 }
 
@@ -249,7 +250,14 @@ func sendFile(w http.ResponseWriter, r *http.Request, contentType string) {
 		return
 	}
 
-	http.ServeFile(w, r, st.Path()+"/"+file)
+	// Use filepath.Join to safely construct the path and prevent path traversal
+	fullPath := filepath.Join(st.Path(), file)
+	// Verify the path is within the repository directory
+	if !strings.HasPrefix(fullPath, filepath.Clean(st.Path())+string(filepath.Separator)) {
+		renderStatusError(w, http.StatusBadRequest)
+		return
+	}
+	http.ServeFile(w, r, fullPath)
 }
 
 func renderStatusError(w http.ResponseWriter, code int) {
